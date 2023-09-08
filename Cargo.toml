@@ -1,6 +1,6 @@
 [package]
 name = "outline_api"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 authors = ["sigseg5"]
 license = "MIT"
