@@ -1,6 +1,6 @@
 [package]
 name = "outline_api"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 authors = ["sigseg5"]
 license = "MIT"
@@ -9,7 +9,7 @@ readme = "README.md"
 homepage = "https://github.com/sigseg5/outline-api"
 repository = "https://github.com/sigseg5/outline-api"
 keywords = ["outline", "oulinevpn", "vpn", "api"]
-categories = ["command-line-utilities"]
+categories = ["api-bindings"]
 
 exclude = [
     ".github/*",
