@@ -1,6 +1,6 @@
 [package]
 name = "outline_api"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 authors = ["sigseg5"]
 license = "MIT"
@@ -18,10 +18,9 @@ exclude = [
 
 [dependencies]
 reqwest = { version = "0.11.20", features = ["blocking"] }
-toml = "0.7.7"
 serde_json = "1.0.105"
 log = "0.4.20"
-env_logger = "0.10.0"
+env_logger = "0.10.0" 
 
 [profile.release]
 opt-level = "z"
