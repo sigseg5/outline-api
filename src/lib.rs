@@ -9,7 +9,7 @@ use reqwest::header::HeaderMap;
 extern crate serde_json;
 
 // API reference v1.0
-// See api.yml or
+// See api.yml at project github or
 // https://github.com/Jigsaw-Code/outline-server/blob/1ac9f238132d5917b42d4b6615727e477aa7bbc0/src/shadowbox/server/api.yml
 
 // API documentation is, hmm... discussable
