@@ -59,7 +59,7 @@ fn main() {
         Err(err) => eprintln!("Error getting server info: {}", err),
     }
 
-                    let raw_id = get_user_input("Provide user ID:");
+    let raw_id = get_user_input("Provide user ID:");
     match raw_id.parse::<u16>() {
         Ok(id) => match vpn.delete_access_key_by_id(&id) {
             Ok(info) => println!("response: {:?}\n", info),
