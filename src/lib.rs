@@ -118,11 +118,11 @@ fn handle_json_api_error(response: Response) -> Result<serde_json::Value, String
 ///
 /// - `api_url`: A reference to a string representing the URL (including `secret`) of the Outline VPN server API.
 /// - `session`: A reqwest HTTP client used to make API requests.
-/// - `request_timeout`: The time to set the timeout for API requests.
+/// - `request_timeout_in_sec`: The time to set the timeout for API requests.
 pub struct OutlineVPN<'a> {
     api_url: &'a str,
     session: Client,
-    request_timeout: Duration,
+    request_timeout_in_sec: Duration,
 }
 
 // Endpoints
@@ -130,8 +130,6 @@ const SERVER_ENDPOINT: &str = "/server";
 const HOSTNAME_ENDPOINT: &str = "/server/hostname-for-access-keys";
 const CHANGE_PORT_ENDPOINT: &str = "/server/port-for-new-access-keys";
 const KEY_DATA_LIMIT_ENDPOINT: &str = "/server/access-key-data-limit";
-
-const REQUEST_TIMEOUT_IN_SEC: u64 = 5;
 
 impl OutlineVPN<'_> {
     fn call_api(
@@ -147,7 +145,7 @@ impl OutlineVPN<'_> {
         let response = self
             .session
             .request(request_method, &url)
-            .timeout(self.request_timeout)
+            .timeout(self.request_timeout_in_sec)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .body(request_body)
             .send()?;
@@ -483,8 +481,7 @@ impl OutlineVPN<'_> {
 ///
 /// - `cert_sha256`: A reference to a string representing the SHA-256 hash of the server's certificate.
 /// - `api_url`: A reference to a string representing the URL of the Outline VPN server API.
-/// - `request_timeout`: An optional `Duration` specifying the timeout for API requests. If `None` is
-///   provided, a default timeout of 5 seconds is used.
+/// - `request_timeout_in_sec`: `Duration` specifying the timeout for API requests.
 ///
 /// # Returns
 ///
@@ -501,7 +498,7 @@ impl OutlineVPN<'_> {
 /// // https://github.com/sigseg5/outline-api/blob/master/README.md
 /// let api_url = "https://example.com/secret";
 /// let cert_sha256 = "cert_sha256_hash";
-/// let request_timeout = Some(Duration::from_secs(10));
+/// let request_timeout = Duration::from_secs(10);
 ///
 /// let outline_vpn = outline_api::new(api_url, cert_sha256, request_timeout);
 ///
@@ -519,7 +516,7 @@ impl OutlineVPN<'_> {
 pub fn new<'a>(
     cert_sha256: &'a str,
     api_url: &'a str,
-    request_timeout: Option<Duration>,
+    request_timeout: Duration,
 ) -> OutlineVPN<'a> {
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -534,16 +531,9 @@ pub fn new<'a>(
         .build()
         .unwrap();
 
-    let default_request_timeout = Duration::from_secs(REQUEST_TIMEOUT_IN_SEC);
-    let safe_request_timeout = if let Some(timeout) = request_timeout {
-        timeout
-    } else {
-        default_request_timeout
-    };
-
     OutlineVPN {
         api_url: &api_url,
         session,
-        request_timeout: safe_request_timeout,
+        request_timeout_in_sec: request_timeout,
     }
 }
