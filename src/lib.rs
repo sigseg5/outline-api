@@ -122,7 +122,7 @@ fn handle_json_api_error(response: Response) -> Result<serde_json::Value, String
 pub struct OutlineVPN<'a> {
     api_url: &'a str,
     session: Client,
-    request_timeout: Duration,
+    request_timeout: Option<Duration>,
 }
 
 // Endpoints
@@ -147,7 +147,10 @@ impl OutlineVPN<'_> {
         let response = self
             .session
             .request(request_method, &url)
-            .timeout(self.request_timeout)
+            .timeout(
+                self.request_timeout
+                    .unwrap_or_else(|| std::time::Duration::from_secs(REQUEST_TIMEOUT_IN_SEC)),
+            )
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .body(request_body)
             .send()?;
@@ -534,16 +537,9 @@ pub fn new<'a>(
         .build()
         .unwrap();
 
-    let default_request_timeout = Duration::from_secs(REQUEST_TIMEOUT_IN_SEC);
-    let safe_request_timeout = if let Some(timeout) = request_timeout {
-        timeout
-    } else {
-        default_request_timeout
-    };
-
     OutlineVPN {
         api_url: &api_url,
         session,
-        request_timeout: safe_request_timeout,
+        request_timeout,
     }
 }
