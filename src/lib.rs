@@ -1,10 +1,9 @@
 //! This package implements [OutlineVPN](https://getoutline.org) Management API.
 
-use std::time::Duration;
-
 use log::debug;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::HeaderMap;
+use std::time::Duration;
 
 extern crate serde_json;
 
@@ -51,19 +50,19 @@ enum APIError {
     UnknownError,
 }
 
-impl APIError {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for APIError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            APIError::UnknownServerError => "An unknown server error occurred.".to_string(),
-            APIError::InternalError => "An internal error occurred.".to_string(),
-            APIError::InvalidHostname => "An invalid hostname or IP address was provided.".to_string(),
-            APIError::InvalidPort => "The requested port wasn't an integer from 1 through 65535, or the request had no port parameter.".to_string(),
-            APIError::PortConflict => "The requested port was already in use by another service.".to_string(),
-            APIError::InvalidDataLimit => "Invalid data limit.".to_string(),
-            APIError::AccessKeyInexistent => "Access key inexistent.".to_string(),
-            APIError::InvalidName => "Invalid name.".to_string(),
-            APIError::InvalidRequest => "Invalid request.".to_string(),
-            APIError::UnknownError => "An unknown error occurred.".to_string(),
+            APIError::UnknownServerError => write!(f, "An unknown server error occurred."),
+            APIError::InternalError => write!(f, "An internal error occurred."),
+            APIError::InvalidHostname => write!(f, "An invalid hostname or IP address was provided."),
+            APIError::InvalidPort => write!(f, "The requested port wasn't an integer from 1 through 65535, or the request had no port parameter."),
+            APIError::PortConflict => write!(f, "The requested port was already in use by another service."),
+            APIError::InvalidDataLimit => write!(f, "Invalid data limit."),
+            APIError::AccessKeyInexistent => write!(f, "Access key inexistent."),
+            APIError::InvalidName => write!(f, "Invalid name."),
+            APIError::InvalidRequest => write!(f, "Invalid request."),
+            APIError::UnknownError => write!(f, "An unknown error occurred."),
         }
     }
 }
@@ -159,7 +158,7 @@ impl OutlineVPN<'_> {
     ///
     /// - `200` – Server information.
     pub fn get_server_info(&self) -> Result<serde_json::Value, String> {
-        let response = match self.call_api(&SERVER_ENDPOINT, reqwest::Method::GET, String::new()) {
+        let response = match self.call_api(SERVER_ENDPOINT, reqwest::Method::GET, String::new()) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
@@ -198,7 +197,7 @@ impl OutlineVPN<'_> {
     /// - `409` – The requested port was already in use by another service.
     pub fn change_default_port_for_newly_created_access(&self, port: &str) -> Result<(), String> {
         let body = format!(r#"{{ "port": {} }}"#, port);
-        let response = match self.call_api(&CHANGE_PORT_ENDPOINT, reqwest::Method::PUT, body) {
+        let response = match self.call_api(CHANGE_PORT_ENDPOINT, reqwest::Method::PUT, body) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
@@ -219,7 +218,7 @@ impl OutlineVPN<'_> {
     /// - `400` – Invalid data limit.
     pub fn set_data_transfer_limit_for_all_access_keys(&self, byte: &u64) -> Result<(), String> {
         let body = format!(r#"{{ "limit": {{ "bytes": {} }} }}"#, byte);
-        let response = match self.call_api(&KEY_DATA_LIMIT_ENDPOINT, reqwest::Method::PUT, body) {
+        let response = match self.call_api(KEY_DATA_LIMIT_ENDPOINT, reqwest::Method::PUT, body) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
@@ -238,7 +237,7 @@ impl OutlineVPN<'_> {
     /// - `204` – Access key limit deleted successfully.
     pub fn remove_data_limit_for_all_access_keys(&self) -> Result<(), String> {
         let response = match self.call_api(
-            &KEY_DATA_LIMIT_ENDPOINT,
+            KEY_DATA_LIMIT_ENDPOINT,
             reqwest::Method::DELETE,
             String::new(),
         ) {
@@ -502,7 +501,7 @@ impl OutlineVPN<'_> {
 ///
 /// let outline_vpn = outline_api::new(api_url, cert_sha256, request_timeout);
 ///
-/// // Performing operations using the lient:
+/// // Performing operations using the Client:
 ///
 /// match outline_vpn.get_server_info() {
 ///     Ok(server_info) => {
@@ -532,7 +531,7 @@ pub fn new<'a>(
         .unwrap();
 
     OutlineVPN {
-        api_url: &api_url,
+        api_url,
         session,
         request_timeout_in_sec: request_timeout,
     }
