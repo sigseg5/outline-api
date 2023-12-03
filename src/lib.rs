@@ -50,6 +50,15 @@ enum APIError {
     UnknownError,
 }
 
+// Endpoints
+const NAME_ENDPOINT: &str = "/name";
+const SERVER_ENDPOINT: &str = "/server";
+const HOSTNAME_ENDPOINT: &str = "/server/hostname-for-access-keys";
+const CHANGE_PORT_ENDPOINT: &str = "/server/port-for-new-access-keys";
+const KEY_DATA_LIMIT_ENDPOINT: &str = "/server/access-key-data-limit";
+const METRICS_ENDPOINT: &str = "/metrics";
+const ACCESS_KEYS_ENDPOINT: &str = "/access-keys";
+
 impl std::fmt::Display for APIError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -108,6 +117,57 @@ fn handle_json_api_error(response: Response) -> Result<serde_json::Value, String
     }
 }
 
+/// Handles the HTTP response status for various API requests.
+///
+/// This function checks the HTTP response status code from a `reqwest::Response` object
+/// and maps it to an appropriate `Result` type. It handles various standard HTTP status
+/// codes, such as OK, NO_CONTENT, BAD_REQUEST, CONFLICT, NOT_FOUND, and INTERNAL_SERVER_ERROR.
+/// Depending on the API endpoint and the specific error, it returns either an `Ok(())` for
+/// successful responses or an `Err(String)` for errors, with a descriptive error message.
+///
+/// # Arguments
+///
+/// * `response` – A reference to the `reqwest::Response` object obtained from an API call.
+/// * `api_path` – A string slice that holds the API endpoint path.
+///
+/// # Returns
+///
+/// This function returns a `Result<(), String>`. On successful response status, it returns `Ok(())`.
+/// On error, it returns `Err(String)` with an appropriate error message based on the API endpoint
+/// and the response status code.
+///
+/// # Error Handling
+///
+/// This function handles the following `reqwest::StatusCode` variants:
+/// - `OK`: Indicates a successful request.
+/// - `NO_CONTENT`: Indicates a successful request with no content to return.
+/// - `BAD_REQUEST`: Maps to specific API errors based on the `api_path`.
+/// - `CONFLICT`: Indicates a port conflict error.
+/// - `NOT_FOUND`: Indicates an invalid access key error.
+/// - `INTERNAL_SERVER_ERROR`: Indicates an internal server error.
+/// - Any other status codes are mapped to an unknown error.
+///
+/// Specific errors are derived from the `APIError` enum, translating enum variants to strings.
+fn handle_response_status(response: &Response, api_path: &str) -> Result<(), String> {
+    match response.status() {
+        reqwest::StatusCode::OK => Ok(()),
+        reqwest::StatusCode::NO_CONTENT => Ok(()),
+        reqwest::StatusCode::BAD_REQUEST => match api_path {
+            NAME_ENDPOINT => Err(APIError::InvalidName.to_string()),
+            HOSTNAME_ENDPOINT => Err(APIError::InvalidHostname.to_string()),
+            CHANGE_PORT_ENDPOINT => Err(APIError::InvalidPort.to_string()),
+            KEY_DATA_LIMIT_ENDPOINT | ACCESS_KEYS_ENDPOINT => {
+                Err(APIError::InvalidDataLimit.to_string())
+            }
+            _ => Err(APIError::InvalidRequest.to_string()),
+        },
+        reqwest::StatusCode::CONFLICT => Err(APIError::PortConflict.to_string()),
+        reqwest::StatusCode::NOT_FOUND => Err(APIError::AccessKeyInexistent.to_string()),
+        reqwest::StatusCode::INTERNAL_SERVER_ERROR => Err(APIError::InternalError.to_string()),
+        _ => Err(APIError::UnknownError.to_string()),
+    }
+}
+
 /// Represents a client for interacting with the Outline VPN Server API.
 ///
 /// The `OutlineVPN` struct provides methods to perform various operations on the Outline VPN server
@@ -123,12 +183,6 @@ pub struct OutlineVPN<'a> {
     session: Client,
     request_timeout_in_sec: Duration,
 }
-
-// Endpoints
-const SERVER_ENDPOINT: &str = "/server";
-const HOSTNAME_ENDPOINT: &str = "/server/hostname-for-access-keys";
-const CHANGE_PORT_ENDPOINT: &str = "/server/port-for-new-access-keys";
-const KEY_DATA_LIMIT_ENDPOINT: &str = "/server/access-key-data-limit";
 
 impl OutlineVPN<'_> {
     fn call_api(
@@ -180,12 +234,7 @@ impl OutlineVPN<'_> {
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::NO_CONTENT => Ok(()),
-            reqwest::StatusCode::BAD_REQUEST => Err(APIError::InvalidHostname.to_string()),
-            reqwest::StatusCode::INTERNAL_SERVER_ERROR => Err(APIError::InternalError.to_string()),
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_response_status(&response, HOSTNAME_ENDPOINT)
     }
 
     /// Change default port for newly created access keys.
@@ -202,12 +251,7 @@ impl OutlineVPN<'_> {
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::NO_CONTENT => Ok(()),
-            reqwest::StatusCode::BAD_REQUEST => Err(APIError::InvalidPort.to_string()),
-            reqwest::StatusCode::CONFLICT => Err(APIError::PortConflict.to_string()),
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_response_status(&response, CHANGE_PORT_ENDPOINT)
     }
 
     /// Set data transfer limit (in bytes) for all access keys.
@@ -223,11 +267,7 @@ impl OutlineVPN<'_> {
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::NO_CONTENT => Ok(()),
-            reqwest::StatusCode::BAD_REQUEST => Err(APIError::InvalidDataLimit.to_string()),
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_response_status(&response, KEY_DATA_LIMIT_ENDPOINT)
     }
 
     /// Remove data transfer limit for all access keys.
@@ -245,10 +285,7 @@ impl OutlineVPN<'_> {
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_response_status(&response, KEY_DATA_LIMIT_ENDPOINT)
     }
 
     /// Rename server.
@@ -259,16 +296,12 @@ impl OutlineVPN<'_> {
     /// - `400` – Invalid name.
     pub fn rename_server(&self, name: &str) -> Result<(), String> {
         let body = format!(r#"{{ "name": "{}" }}"#, name);
-        let response = match self.call_api("/name", reqwest::Method::PUT, body) {
+        let response = match self.call_api(NAME_ENDPOINT, reqwest::Method::PUT, body) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::NO_CONTENT => Ok(()),
-            reqwest::StatusCode::BAD_REQUEST => Err(APIError::InvalidName.to_string()),
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_response_status(&response, NAME_ENDPOINT)
     }
 
     /// Create new access key.
@@ -277,10 +310,11 @@ impl OutlineVPN<'_> {
     ///
     /// - `201` – The newly created access key.
     pub fn create_access_key(&self) -> Result<serde_json::Value, String> {
-        let response = match self.call_api("/access-keys", reqwest::Method::POST, String::new()) {
-            Ok(response) => response,
-            Err(_) => return Err(APIError::UnknownServerError.to_string()),
-        };
+        let response =
+            match self.call_api(ACCESS_KEYS_ENDPOINT, reqwest::Method::POST, String::new()) {
+                Ok(response) => response,
+                Err(_) => return Err(APIError::UnknownServerError.to_string()),
+            };
 
         handle_json_api_error(response)
     }
@@ -291,10 +325,11 @@ impl OutlineVPN<'_> {
     ///
     /// - `200` – List of access keys.
     pub fn list_access_keys(&self) -> Result<serde_json::Value, String> {
-        let response = match self.call_api("/access-keys", reqwest::Method::GET, String::new()) {
-            Ok(response) => response,
-            Err(_) => return Err(APIError::UnknownServerError.to_string()),
-        };
+        let response =
+            match self.call_api(ACCESS_KEYS_ENDPOINT, reqwest::Method::GET, String::new()) {
+                Ok(response) => response,
+                Err(_) => return Err(APIError::UnknownServerError.to_string()),
+            };
 
         handle_json_api_error(response)
     }
@@ -307,7 +342,7 @@ impl OutlineVPN<'_> {
     // /// - 200 – The access key.
     // /// - 404 – Access key inexistent.
     // pub fn get_access_key_by_id(&self, id: &u16) -> Result<serde_json::Value, String> {
-    //     let api_path = format!("/access-keys/{}", id);
+    //     let api_path = format!("{}/{}", ACCESS_KEYS_ENDPOINT, id);
     //     let response = match self.call_api(&api_path, reqwest::Method::GET, String::new()) {
     //         Ok(response) => response,
     //         Err(_) => return Err(APIError::UnknownServerError.to_string()),
@@ -323,17 +358,13 @@ impl OutlineVPN<'_> {
     /// - `204` – Access key deleted successfully.
     /// - `404` – Access key inexistent.
     pub fn delete_access_key_by_id(&self, id: &u16) -> Result<(), String> {
-        let api_path = format!("/access-keys/{}", id);
+        let api_path = format!("{}/{}", ACCESS_KEYS_ENDPOINT, id);
         let response = match self.call_api(&api_path, reqwest::Method::DELETE, String::new()) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::NO_CONTENT => Ok(()),
-            reqwest::StatusCode::NOT_FOUND => Err(APIError::AccessKeyInexistent.to_string()),
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_response_status(&response, ACCESS_KEYS_ENDPOINT)
     }
 
     /// Change name for access key (by ID).
@@ -344,17 +375,13 @@ impl OutlineVPN<'_> {
     /// - `404` – Access key inexistent.
     pub fn change_name_for_access_key(&self, id: &u16, username: &str) -> Result<(), String> {
         let body = format!(r#"{{ "name": "{}" }}"#, username);
-        let api_path = format!("/access-keys/{}/name", id);
+        let api_path = format!("{}/{}/name", ACCESS_KEYS_ENDPOINT, id);
         let response = match self.call_api(&api_path, reqwest::Method::PUT, body) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::NO_CONTENT => Ok(()),
-            reqwest::StatusCode::NOT_FOUND => Err(APIError::AccessKeyInexistent.to_string()),
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_response_status(&response, ACCESS_KEYS_ENDPOINT)
     }
 
     /// Set data transfer limit by ID.
@@ -366,18 +393,13 @@ impl OutlineVPN<'_> {
     /// - `404` –  Access key inexistent.
     pub fn set_data_transfer_limit_by_id(&self, id: &u16, byte: &u64) -> Result<(), String> {
         let body = format!(r#"{{ "limit": {{ "bytes": {} }} }}"#, byte);
-        let api_path = format!("/access-keys/{}/data-limit", id);
+        let api_path = format!("{}/{}/data-limit", ACCESS_KEYS_ENDPOINT, id);
         let response = match self.call_api(&api_path, reqwest::Method::PUT, body) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::NO_CONTENT => Ok(()),
-            reqwest::StatusCode::BAD_REQUEST => Err(APIError::InvalidDataLimit.to_string()),
-            reqwest::StatusCode::NOT_FOUND => Err(APIError::AccessKeyInexistent.to_string()),
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_response_status(&response, ACCESS_KEYS_ENDPOINT)
     }
 
     /// Remove data transfer limit by ID.
@@ -387,17 +409,13 @@ impl OutlineVPN<'_> {
     /// - `204` – Access key limit deleted successfully.
     /// - `404` – Access key inexistent.
     pub fn del_data_transfer_limit_by_id(&self, id: &u16) -> Result<(), String> {
-        let api_path = format!("/access-keys/{}/data-limit", id);
+        let api_path = format!("{}/{}/data-limit", ACCESS_KEYS_ENDPOINT, id);
         let response = match self.call_api(&api_path, reqwest::Method::DELETE, String::new()) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::NO_CONTENT => Ok(()),
-            reqwest::StatusCode::NOT_FOUND => Err(APIError::AccessKeyInexistent.to_string()),
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_response_status(&response, ACCESS_KEYS_ENDPOINT)
     }
 
     /// Get data transfer stats for each access key in bytes.
@@ -406,8 +424,8 @@ impl OutlineVPN<'_> {
     ///
     /// - `200` – The data transferred by each access key.
     pub fn get_each_access_key_data_transferred(&self) -> Result<serde_json::Value, String> {
-        let response = match self.call_api("/metrics/transfer", reqwest::Method::GET, String::new())
-        {
+        let api_path = format!("{}/transfer", METRICS_ENDPOINT);
+        let response = match self.call_api(&api_path, reqwest::Method::GET, String::new()) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
@@ -431,8 +449,8 @@ impl OutlineVPN<'_> {
     ///
     /// - `200` – The metrics enabled setting.
     pub fn get_whether_metrics_is_being_shared(&self) -> Result<serde_json::Value, String> {
-        let response = match self.call_api("/metrics/enabled", reqwest::Method::GET, String::new())
-        {
+        let api_path = format!("{}/enabled", METRICS_ENDPOINT);
+        let response = match self.call_api(&api_path, reqwest::Method::GET, String::new()) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
@@ -458,17 +476,13 @@ impl OutlineVPN<'_> {
     /// - `400` – Invalid request.
     pub fn enable_or_disable_sharing_metrics(&self, metrics_enabled: bool) -> Result<(), String> {
         let body = format!(r#"{{ "metricsEnabled": {} }}"#, metrics_enabled);
-
-        let response = match self.call_api("/metrics/enabled", reqwest::Method::PUT, body) {
+        let api_path = format!("{}/enabled", METRICS_ENDPOINT);
+        let response = match self.call_api(&api_path, reqwest::Method::PUT, body) {
             Ok(response) => response,
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::NO_CONTENT => Ok(()),
-            reqwest::StatusCode::BAD_REQUEST => Err(APIError::InvalidRequest.to_string()),
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_response_status(&response, ACCESS_KEYS_ENDPOINT)
     }
 }
 
@@ -523,7 +537,7 @@ pub fn new<'a>(
         reqwest::header::HeaderValue::from_str(cert_sha256).unwrap(),
     );
 
-    // .danger_accept_invalid_certs(true) use is safe because it uses a self-issued encryption certificate when the server is created
+    // .danger_accept_invalid_certs(true) is safe to use because it uses a self-issued encryption certificate when the server is created
     let session = Client::builder()
         .danger_accept_invalid_certs(true)
         .default_headers(headers)
