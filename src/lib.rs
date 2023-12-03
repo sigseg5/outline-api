@@ -462,7 +462,7 @@ impl OutlineVPN<'_> {
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        handle_response_status(&response, ACCESS_KEYS_ENDPOINT)
+        handle_response_status(&response, METRICS_ENDPOINT)
     }
 }
 
