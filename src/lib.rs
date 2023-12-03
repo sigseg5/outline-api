@@ -102,7 +102,7 @@ impl std::fmt::Display for APIError {
 ///   an internal server error.
 /// - `APIError::UnknownError`: If the response status code is not `200 OK` or `500 Internal Server Error`,
 ///   indicating an unknown error occurred.
-fn handle_json_api_error(response: Response) -> Result<serde_json::Value, String> {
+fn handle_json_api_result(response: Response) -> Result<serde_json::Value, String> {
     match response.status() {
         reqwest::StatusCode::OK => {
             let response_body = response
@@ -217,7 +217,7 @@ impl OutlineVPN<'_> {
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        handle_json_api_error(response)
+        handle_json_api_result(response)
     }
 
     /// Change hostname for access keys.
@@ -316,7 +316,7 @@ impl OutlineVPN<'_> {
                 Err(_) => return Err(APIError::UnknownServerError.to_string()),
             };
 
-        handle_json_api_error(response)
+        handle_json_api_result(response)
     }
 
     /// Display complete list of the access keys.
@@ -331,7 +331,7 @@ impl OutlineVPN<'_> {
                 Err(_) => return Err(APIError::UnknownServerError.to_string()),
             };
 
-        handle_json_api_error(response)
+        handle_json_api_result(response)
     }
 
     // /// Incorrect API specification, this method is defined in the API, but is not actually supported by the server!!!
@@ -430,7 +430,7 @@ impl OutlineVPN<'_> {
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        handle_json_api_error(response)
+        handle_json_api_result(response)
     }
 
     /// Get 'Share anonymous metrics' status.
@@ -445,7 +445,7 @@ impl OutlineVPN<'_> {
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        handle_json_api_error(response)
+        handle_json_api_result(response)
     }
 
     /// Enable or disable 'Share anonymous metrics' setting.
