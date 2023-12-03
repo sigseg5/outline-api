@@ -430,17 +430,7 @@ impl OutlineVPN<'_> {
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::OK => {
-                let response_body = response
-                    .text()
-                    .map_err(|_| "Error reading response body".to_string())?;
-                let json_value: serde_json::Value = serde_json::from_str(&response_body)
-                    .map_err(|_| "Error deserializing JSON".to_string())?;
-                Ok(json_value)
-            }
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_json_api_error(response)
     }
 
     /// Get 'Share anonymous metrics' status.
@@ -455,17 +445,7 @@ impl OutlineVPN<'_> {
             Err(_) => return Err(APIError::UnknownServerError.to_string()),
         };
 
-        match response.status() {
-            reqwest::StatusCode::OK => {
-                let response_body = response
-                    .text()
-                    .map_err(|_| "Error reading response body".to_string())?;
-                let json_value: serde_json::Value = serde_json::from_str(&response_body)
-                    .map_err(|_| "Error deserializing JSON".to_string())?;
-                Ok(json_value)
-            }
-            _ => Err(APIError::UnknownError.to_string()),
-        }
+        handle_json_api_error(response)
     }
 
     /// Enable or disable 'Share anonymous metrics' setting.
